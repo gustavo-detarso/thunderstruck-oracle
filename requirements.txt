@@ -1,0 +1,10 @@
+streamlit
+bcrypt
+faiss-cpu
+llama-cpp-python
+langchain
+langchain-community
+unstructured[docx,odt,excel]
+pandas
+pypdf
+google-search-results

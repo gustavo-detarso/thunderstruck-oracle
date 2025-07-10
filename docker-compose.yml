@@ -1,0 +1,44 @@
+services:
+  app:
+    build: .
+    container_name: thunderstruck-oracle_app
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./logs:/app/logs
+      - ./db:/app/db
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      - caddy
+    restart: unless-stopped
+    environment:
+      - SERPAPI_KEY   # <- só referência, não coloque o valor aqui!
+
+  # Se o indexer for usar a busca web, adicione igual:
+  indexer:
+    build:
+      context: .
+    container_name: thunderstruck-oracle_indexer
+    command: python indexer.py
+    volumes:
+      - ./data:/app/data
+      - ./db:/app/db
+      - ./models:/app/models
+      - ./tags.json:/app/tags.json
+    profiles:
+      - index
+    restart: unless-stopped
+    environment:
+      - SERPAPI_KEY
+
+  caddy:
+    image: caddy:latest
+    container_name: thunderstruck-oracle_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    restart: unless-stopped
