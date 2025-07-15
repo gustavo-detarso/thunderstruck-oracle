@@ -1,0 +1,11 @@
+models/
+db/*
+!db/tags.json
+data/
+logs/
+*.gguf
+*.log
+*.db
+__pycache__/
+*.pyc
+

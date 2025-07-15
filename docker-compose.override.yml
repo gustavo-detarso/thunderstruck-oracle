@@ -1,8 +1,9 @@
 services:
   app:
     volumes:
-      - .:/app  # Hot reload do código no desenvolvimento
+      - .:/app  # hot reload para desenvolvimento
 
   indexer:
     volumes:
-      - .:/app  # Hot reload do código no desenvolvimento
+      - .:/app  # hot reload para desenvolvimento
+

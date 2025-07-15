@@ -1,10 +1,40 @@
+# Web e App
 streamlit
 bcrypt
+
+# IA e Vetorização
 faiss-cpu
 llama-cpp-python
 langchain
 langchain-community
-unstructured[docx,odt,excel]
+langchain-core
+
+# Manipulação de Dados
 pandas
+
+# PDF e Pesquisa
 pypdf
 google-search-results
+
+# Unstructured para docx, odt, excel, pdf, etc
+unstructured[docx,odt,excel,local-inference,pdf,pytesseract]
+python-docx
+openpyxl
+odfpy
+tiktoken
+
+# EXTRAÇÃO ROBUSTA DE TABELAS PDF
+camelot-py[cv]
+pdfplumber
+tabulate
+pdfminer.six
+
+# OCR e imagem (caso Camelot precise)
+pillow
+opencv-python
+ghostscript
+pytesseract
+
+# Outras dependências úteis
+numpy
+

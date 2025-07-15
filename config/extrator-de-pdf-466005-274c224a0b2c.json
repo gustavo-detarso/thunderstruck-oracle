@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "extrator-de-pdf-466005",
+  "private_key_id": "274c224a0b2cf122da8ce2bec6fae906cc73b3cb",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDVuRVzYiwWkAn9\nHJzc5peNxxF8bkjGG8NEtr6q+8IomJUPYyZ3IG7XfJP4ubWyfGcv1CLptIRwYwcz\nL1DSb/AMX57aMIv7GSbMGVyspOx/QWSTQ5I5qxACbwk1j9qJUaljM8rytvV1FE8j\nwFKOA3w42OP1cVtWhOkIlo93zhiyNWrA/dLE6w0JGRrkxt9/O+07Qei35OBGPJO3\nFkCjj+L7U3FvTFRl1EwS/DfwUj6Xi719FliTT2zB23LcjOKjUqoAUShk//l4pI7a\njOSvAY2L0CMwNvvaRWfwh6xQaW9KkIN+F6kFwj1MNvDIiaSyDB55EoPA4eWogm02\nCPNu0ArzAgMBAAECggEAIugESgtGN8yAZ8/VCjqP6oQ8EGPIzLElyY1urb7JvYH8\n59L3VNc+E0F8aiVsDiybA9OffNEoHQenhONyTV8ineVo11USKnQ3WHgUoU6cdm+n\n7WoeB1TaRrN7lb0a4c5Yc+SL00GGQdWL1Bh/be9sH11uj0dbi3wmEr+DIND59Uek\nxYudzjudsm2Bo5wyXG/p/Sx+qdHgYqEi45AnlcpRrZY6Q4MpolDF1+CmC1vT4Zmg\nxJG1H3b/3jxcK7c3Mn89ujaH5Pt/fRm3SlPGpWEs7G/G+lfbhpQtD8eXJev5G+yb\n/Y1POKqDH6zrVktYubt0j0EN8ClzS/QwMNaqQXdTHQKBgQDsmTzsoqML+oqct6S8\n++FfX7HXaIyUGJlrDacs81sW7rEI9+HAoLmt5yZhymRzNTnRRuuwp8/J007wyXdY\naQaJVPh/hnBL4ct1bS7AFpVUV5LuL+yNf9Sv5D2UIh+uEK2boevu5jRmpYC/9J1K\nfHjiBO/Rc/lAX+dWSPr9RBJkBQKBgQDnP6ILyU0aonr1luSM0s5ogXYKzhgk6TQJ\nnwh4is6N2CfQmAlTF4HQgRYhX7XrXcme7JVnQ9sT7a+3NiolcBRXMkkz8s4nMPE0\nuRszaoDGzMx3RntsauTmFKcTgkCsdwUk+q1khq5dvnbBZiImAVpOuJICDaflcDlg\n6FajWjSclwKBgD6UEU8tfR6P99WXpRTvMh79upYU6wnIr9tm0w7Klw8rttt+ZNGE\nMVhTyQ0YcRUfwNkffvtMh2MEZt69CrnxnW75cHiaYF1RrXSzmifoUTrrpsslFdYf\nN2wGXFsv410wwBpn63VWogl8QN+EnY2z+m0djSjDGevy8ccaqngOZybZAoGBAKRK\nmDUpekcfAp6y6oOGTbD/sT6x94NZz2e6fgkuDNvHo1nWemF3RPo+i9uAJT4n7tOj\nH+4yzlXVO06+A6l/fGQKzOlEauR7KBMeI84er4kN/YIMKCn5s9AnAiChHJOrJ5OD\nKWdPLFhbtgFnL4Gy2lctWEZvL0aZuZo41zzNHK3XAoGAOWU0u+nLSMvt+5FWHGf4\nbFhG8fB3OTXlBgxYDjShImUovrANRyfzDK1sYCOj5VnrErfw6vmgAFQeMH/5Zcwm\nxeW6PG0213Jrn//uQ+e2nT7QRzwaSVUsY4ymdW9w6iUrokMwPHDAdFG9U1PP6DLd\nL+FFZtl5R0GpWNsylJh3Co0=\n-----END PRIVATE KEY-----\n",
+  "client_email": "document-ai-access@extrator-de-pdf-466005.iam.gserviceaccount.com",
+  "client_id": "104760670441765593011",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/document-ai-access%40extrator-de-pdf-466005.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

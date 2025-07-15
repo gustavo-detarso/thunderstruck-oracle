@@ -1,27 +1,36 @@
 import streamlit as st
-from auth_manager import AuthManager
-from chat_manager import ChatManager
+from config.auth_manager import AuthManager
+from chat.interface import ChatManager as ChatUI
+from config.layout import configurar_interface, inicializar_sessao
+from pages.estatisticas import pagina_estatisticas as exibir_estatisticas
+from pages.historico import pagina_historico as exibir_historico
+
+configurar_interface()
+inicializar_sessao()
 
 auth = AuthManager()
-chat = ChatManager()
 
-# Controle de login
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    if auth.handle_login():
-        st.session_state["logged_in"] = True
-        st.rerun()  # Atualiza para esconder a tela de login
+if not st.session_state.logged_in:
+    auth.handle_login()
 else:
-    st.title("⚡ Thunderstruck Oracle")
-    st.caption("Desenvolvido por Gustavo de Tarso")
+    menu = st.sidebar.radio(
+        "Menu",
+        ["Fazer pergunta", "Histórico", "Estatísticas"] + (["Admin"] if auth.is_admin() else [])
+    )
 
-    if auth.is_admin():
-        with st.sidebar:
-            st.header("Administração")
-            auth.approve_users()
-            auth.export_users()
-            auth.delete_users()
+    if menu == "Fazer pergunta":
+        chat_ui = ChatUI()
+        chat_ui.run_chat_interface()
 
-    chat.run_chat_interface()
+    elif menu == "Histórico":
+        exibir_historico()
+
+    elif menu == "Estatísticas":
+        exibir_estatisticas()
+
+    elif menu == "Admin":
+        st.title("👤 Administração")
+        auth.approve_users()
+        auth.export_users()
+        auth.delete_users()
+

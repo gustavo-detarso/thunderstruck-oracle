@@ -29,7 +29,24 @@ class AuthManager:
             role TEXT NOT NULL
         )
         """)
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS logins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        )
+        """)
         self.conn.commit()
+
+    def registrar_login(self, username):
+        try:
+            self.cursor.execute(
+                "INSERT INTO logins (usuario, timestamp) VALUES (?, datetime('now'))",
+                (username,)
+            )
+            self.conn.commit()
+        except Exception as e:
+            logging.error(f"Erro ao registrar login: {e}")
 
     def save_user(self, username, password_hash, approved, role):
         self.cursor.execute("""
@@ -94,6 +111,7 @@ class AuthManager:
             st.session_state["logged_in"] = True
             st.session_state["current_user"] = username
             st.session_state["role"] = user[3]
+            self.registrar_login(username)
             logging.info(f"LOGIN OK | {username}")
             return True
         return False
@@ -146,7 +164,7 @@ class AuthManager:
 
     def delete_users(self):
         st.subheader("Excluir usuários")
-        admin_user = st.session_state["current_user"]
+        admin_user = st.session_state.get("current_user")
         users = self.get_all_users()
         for u in users:
             if u[0] != admin_user:
@@ -157,3 +175,4 @@ class AuthManager:
 
     def is_admin(self):
         return st.session_state.get("role") == "admin"
+

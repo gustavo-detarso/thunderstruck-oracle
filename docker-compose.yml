@@ -5,23 +5,23 @@ services:
     ports:
       - "8501:8501"
     volumes:
+      - ./:/app
       - ./logs:/app/logs
       - ./db:/app/db
       - ./models:/app/models
       - ./data:/app/data
       - ./config:/app/config
-    depends_on:
-      - caddy
     restart: unless-stopped
     environment:
-      - SERPAPI_KEY   # <- só referência, não coloque o valor aqui!
+      - SERPAPI_KEY
+    env_file:
+      - .env
 
-  # Se o indexer for usar a busca web, adicione igual:
   indexer:
     build:
       context: .
     container_name: thunderstruck-oracle_indexer
-    command: python indexer.py
+    command: python -m rag.indexer
     volumes:
       - ./data:/app/data
       - ./db:/app/db
@@ -32,13 +32,6 @@ services:
     restart: unless-stopped
     environment:
       - SERPAPI_KEY
+    env_file:
+      - .env
 
-  caddy:
-    image: caddy:latest
-    container_name: thunderstruck-oracle_caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-    restart: unless-stopped

@@ -3,9 +3,9 @@
 set -e
 
 echo "📁 Garantindo existência da pasta logs/"
-mkdir -p logs
+mkdir -p logs/logs_extracao
 
-logfile="logs/indexer-$(date +%Y-%m-%d_%H-%M-%S).log"
+logfile="logs/logs_extracao/indexer-$(date +%Y-%m-%d_%H-%M-%S).log"
 echo "🚀 Rodando indexer com log em $logfile"
 
 # Salva stdout e stderr
