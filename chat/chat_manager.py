@@ -9,10 +9,11 @@ from datetime import datetime
 import os
 import tiktoken
 import re
+import pandas as pd
+import difflib
 
-# Parâmetros principais para controle de tamanho do contexto e resposta
-LLAMA_N_CTX = 4096  # Janela de contexto (ajuste se seu modelo suportar mais)
-LLAMA_MAX_TOKENS = 1500  # Tokens máximos para resposta (ajuste conforme a necessidade/modelo)
+LLAMA_N_CTX = 4096
+LLAMA_MAX_TOKENS = 1500
 
 from preprocessing.ufs import NOME_PARA_UF
 
@@ -60,50 +61,120 @@ def log_prompt(user, prompt, query, tags, advanced):
             "prompt": prompt,
         }, ensure_ascii=False) + "\n")
 
-# ---------- NOVO: busca_tabela_estruturada (pré-processamento tabular) ----------
-def busca_tabela_estruturada(pergunta, json_path="./db/tabelas_extraidas.json"):
-    if not os.path.exists(json_path):
-        return None
+def buscar_csv_em_subpastas(nome_csv_parcial, raiz="data"):
+    st.info(f"[DEBUG] Buscando arquivo que contém '{nome_csv_parcial}' em '{raiz}' e subdiretórios...")
+    for root, dirs, files in os.walk(raiz):
+        for file in files:
+            if file.endswith(".csv") and nome_csv_parcial in file:
+                caminho_encontrado = os.path.join(root, file)
+                st.info(f"[DEBUG] CSV encontrado: {caminho_encontrado}")
+                return caminho_encontrado
+    for root, dirs, files in os.walk("/mnt/data"):
+        for file in files:
+            if file.endswith(".csv") and nome_csv_parcial in file:
+                caminho_encontrado = os.path.join(root, file)
+                st.info(f"[DEBUG] CSV encontrado (mnt/data): {caminho_encontrado}")
+                return caminho_encontrado
+    st.warning("[DEBUG] Nenhum CSV encontrado!")
+    return None
+
+def contem_palavra_semelhante(texto, palavras, cutoff=0.7):
+    tokens = texto.lower().split()
+    for p in palavras:
+        for token in tokens:
+            if difflib.SequenceMatcher(None, p, token).ratio() >= cutoff:
+                return True
+    return False
+
+def busca_tabela_estruturada(pergunta, nome_csv_parcial="portaria_dpmf-srgps-mps_1424_2025"):
+    st.info(f"[DEBUG] Pergunta recebida: {pergunta}")
+    csv_path = buscar_csv_em_subpastas(nome_csv_parcial)
+    if not csv_path or not os.path.exists(csv_path):
+        csv_path = "/mnt/data/portaria_dpmf-srgps-mps_1424_2025[tabela].csv"
+        if not os.path.exists(csv_path):
+            st.warning("[DEBUG] CSV realmente não encontrado em nenhum lugar.")
+            return None, None, None  # <- 3 valores!
+        else:
+            st.info(f"[DEBUG] Usando CSV local: {csv_path}")
+
     uf = None
+    uf_nome = None
     uf_match = re.search(r"\b(?:no|na|em|do|da|de|para)\s+([A-Z]{2})\b", pergunta.upper())
     if uf_match:
-        uf = uf_match.group(1)
+        uf = uf_match.group(1).strip().upper()
+        uf_nome = next((k for k, v in NOME_PARA_UF.items() if v == uf), uf)
+        st.info(f"[DEBUG] UF detectada na pergunta: {uf}")
     else:
         for nome_estado in NOME_PARA_UF:
             padrao = r"\b(?:no|na|em|do|da|de|para)\s+" + re.escape(nome_estado) + r"\b"
             if re.search(padrao, pergunta.lower()):
                 uf = NOME_PARA_UF[nome_estado]
+                uf_nome = nome_estado
+                st.info(f"[DEBUG] UF detectada por nome: {uf}")
                 break
+
+    try:
+        df = pd.read_csv(csv_path, encoding="utf-8")
+        st.info(f"[DEBUG] CSV lido com encoding utf-8")
+    except Exception:
+        try:
+            df = pd.read_csv(csv_path, encoding="latin1")
+            st.info(f"[DEBUG] CSV lido com encoding latin1")
+        except Exception:
+            st.warning("[DEBUG] Falha ao ler CSV.")
+            return None, uf_nome, os.path.basename(csv_path) if csv_path else None
+
+    df.columns = [c.strip().lower() for c in df.columns]
+    st.info(f"[DEBUG] Colunas encontradas: {df.columns.tolist()}")
+    col_uf = "estado"
+    col_cidade = "municipio"
+    col_unidade = "unidade"
+
+    if col_uf not in df.columns:
+        st.warning(f"[DEBUG] Coluna '{col_uf}' não encontrada no CSV!")
+        return None, uf_nome, os.path.basename(csv_path) if csv_path else None
+
+    if uf:
+        df[col_uf] = df[col_uf].astype(str).str.strip().str.upper()
+        st.info(f"[DEBUG] Valores únicos em estado após limpeza: {df[col_uf].unique().tolist()}")
+        df = df[df[col_uf] == uf]
+        st.info(f"[DEBUG] Linhas para {uf}: {len(df)}")
+    else:
+        st.warning("[DEBUG] UF não reconhecida.")
+        return None, uf_nome, os.path.basename(csv_path) if csv_path else None
+
     lista_cidades = []
     lista_unidades = []
-    with open(json_path, "r", encoding="utf-8") as f:
-        tabelas = json.load(f)
-    for tab in tabelas:
-        header = [h.lower() for h in tab['header']]
-        for row in tab['rows']:
-            linha = dict(zip(header, row))
-            if uf and 'uf' in linha and linha['uf'].strip().upper() != uf:
-                continue
-            if any(t in pergunta.lower() for t in ["cidade", "cidades", "município", "municipio"]):
-                cidade = linha.get('cidade') or linha.get('municipio') or linha.get('município')
-                if cidade:
-                    lista_cidades.append(cidade.strip())
-            elif any(t in pergunta.lower() for t in ["unidade", "aps", "teleatendimento"]):
-                unidade = linha.get('unidade', '')
-                cidade = linha.get('cidade', '') or linha.get('municipio', '') or linha.get('município', '')
-                if unidade and cidade:
-                    lista_unidades.append(f"{cidade.strip()}: {unidade.strip()}")
-                elif unidade:
-                    lista_unidades.append(unidade.strip())
-                elif cidade:
-                    lista_unidades.append(cidade.strip())
-    if lista_cidades:
-        return sorted(set(lista_cidades))
-    if lista_unidades:
-        return sorted(set(lista_unidades))
-    return None
 
-# -----------------------------------------------------------------------------
+    palavras_esperadas = [
+        "quais", "liste", "listar", "cidade", "cidades", "unidades", "unidade",
+        "municipios", "municípios", "tabela", "aps", "teleatendimento"
+    ]
+    if not contem_palavra_semelhante(pergunta.lower(), palavras_esperadas, cutoff=0.7):
+        st.warning("[DEBUG] Nenhuma palavra-chave encontrada na pergunta.")
+
+    for _, row in df.iterrows():
+        cidade = row[col_cidade] if pd.notnull(row[col_cidade]) else ""
+        unidade = row[col_unidade] if pd.notnull(row[col_unidade]) else ""
+        if any(t in pergunta.lower() for t in ["cidade", "cidades", "município", "municipio"]):
+            if cidade:
+                lista_cidades.append(str(cidade).strip())
+        elif any(t in pergunta.lower() for t in ["unidade", "aps", "teleatendimento"]):
+            if unidade and cidade:
+                lista_unidades.append(f"{cidade.strip()}: {unidade.strip()}")
+            elif unidade:
+                lista_unidades.append(unidade.strip())
+            elif cidade:
+                lista_unidades.append(cidade.strip())
+
+    if lista_cidades:
+        st.info(f"[DEBUG] {len(lista_cidades)} cidades encontradas.")
+        return sorted(set(lista_cidades)), uf_nome, os.path.basename(csv_path) if csv_path else None
+    if lista_unidades:
+        st.info(f"[DEBUG] {len(lista_unidades)} unidades encontradas.")
+        return sorted(set(lista_unidades)), uf_nome, os.path.basename(csv_path) if csv_path else None
+    st.warning("[DEBUG] Nenhuma cidade ou unidade encontrada após filtro.")
+    return None, uf_nome, os.path.basename(csv_path) if csv_path else None
 
 class ChatManager:
     def __init__(self):
@@ -241,19 +312,42 @@ class ChatManager:
             cached = self.cache.get(query, selected_tags)
             if cached:
                 st.write("✅ Resposta em cache:")
-                st.write(cached)
+                # Mostra como tabela se cache for markdown de tabela
+                if cached.strip().startswith("|"):
+                    from io import StringIO
+                    df_cached = pd.read_table(StringIO(cached), sep="|", engine="python")
+                    st.table(df_cached)
+                else:
+                    st.write(cached)
+                st.markdown(
+                    "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS. Resultados tabulares são exibidos como tabela para facilitar sua consulta.</sub>",
+                    unsafe_allow_html=True
+                )
                 return
 
-            # Busca tabular estruturada antes de qualquer coisa
-            tabular_resposta = busca_tabela_estruturada(query)
-            if tabular_resposta and any(p in query.lower() for p in [
-                "quais", "liste", "listar", "cidades", "unidades", "municipios", "municípios", "tabela"
-            ]):
-                resposta_formatada = "\n".join(tabular_resposta)
-                st.success("Resposta baseada em tabela estruturada extraída dos documentos:")
-                st.markdown('\n'.join([f"{i+1}. {linha}" for i, linha in enumerate(tabular_resposta)]))
-                self.cache.set(query, selected_tags, resposta_formatada)
+            tabular_resposta, uf_nome = busca_tabela_estruturada(query)
+
+            if tabular_resposta:
+                municipios = []
+                unidades = []
+                for linha in tabular_resposta:
+                    partes = linha.split(':')
+                    municipios.append(partes[0].strip())
+                    unidades.append(partes[1].strip() if len(partes) > 1 else "")
+                df_tabela = pd.DataFrame({
+                    "Município": municipios,
+                    "Unidade": unidades
+                })
+                titulo = f"Unidades de Teleatendimento no {uf_nome.capitalize() if uf_nome else ''}"
+                st.markdown(f"### {titulo}\n")
+                st.table(df_tabela)
+                st.success(f"{len(tabular_resposta)} unidade(s) encontrada(s) para {uf_nome.capitalize() if uf_nome else ''}.")
+                self.cache.set(query, selected_tags, df_tabela.to_markdown(index=False))
                 self.cache.clean()
+                st.markdown(
+                    "<sub style='color: #888'>Consulta estruturada: dados extraídos e exibidos em tabela. Para novas perguntas, digite acima!</sub>",
+                    unsafe_allow_html=True
+                )
                 return
 
             contexto = contexto_preview if contexto_preview is not None else self.get_context_for_preview(query, selected_tags)
@@ -267,9 +361,7 @@ class ChatManager:
             user = "anonimo"
             log_prompt(user, prompt_final, query, selected_tags, use_advanced)
 
-            # Chamada ao modelo com max_tokens amplo
             resposta = self.llm(prompt_final, max_tokens=LLAMA_MAX_TOKENS, temperature=0.3)
-            # Extrai texto e motivo de parada (finish_reason)
             if isinstance(resposta, dict):
                 final_text = resposta["choices"][0]["text"]
                 finish_reason = resposta["choices"][0].get("finish_reason", "")
@@ -311,6 +403,10 @@ class ChatManager:
                     st.write(final_text_web)
                     self.cache.set(query, selected_tags, final_text_web)
                     self.cache.clean()
+                    st.markdown(
+                        "<sub style='color: #888'>Consulta complementar automática via web.</sub>",
+                        unsafe_allow_html=True
+                    )
                     return
                 else:
                     st.warning("Não foi possível encontrar informações no fallback web.")
@@ -318,6 +414,10 @@ class ChatManager:
             st.write(final_text)
             self.cache.set(query, selected_tags, final_text)
             self.cache.clean()
+            st.markdown(
+                "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS.</sub>",
+                unsafe_allow_html=True
+            )
 
         except Exception as e:
             st.error(f"Erro durante a geração da resposta: {e}")

@@ -1,9 +1,9 @@
 import numpy as np
 from rag.retriever import Retriever
 from rag.embedding_handler import EmbeddingHandler
+import os
 
 # Importe a função busca_tabela_estruturada corretamente.
-# Altere este import caso esteja em outro local!
 from chat.chat_manager import busca_tabela_estruturada
 
 class RAGManager:
@@ -14,15 +14,20 @@ class RAGManager:
         self.max_tokens = 1500  # pode ajustar baseado no modelo local
 
     def responder_pergunta(self, pergunta, tags=None, return_score=False, temperature=0.5):
-        # === NOVO: busca tabular estruturada antes de tudo ===
-        tabular_resposta = busca_tabela_estruturada(pergunta)
-        if tabular_resposta and any(p in pergunta.lower() for p in [
-            "quais", "liste", "listar", "cidades", "unidades", "municipios", "municípios", "tabela"
-        ]):
-            resposta_formatada = '\n'.join([f"{i+1}. {linha}" for i, linha in enumerate(tabular_resposta)])
+        # === Busca tabular estruturada antes de tudo ===
+        tabular_resultado = busca_tabela_estruturada(pergunta)
+        # tabular_resultado pode ser (lista, estado, fonte_csv) ou None
+        if (
+            tabular_resultado and
+            isinstance(tabular_resultado, tuple) and
+            isinstance(tabular_resultado[0], list) and
+            len(tabular_resultado[0]) > 0
+        ):
+            lista, estado, fonte_csv = tabular_resultado
+            fontes = [fonte_csv]  # mostra o nome real do arquivo fonte
             if return_score:
-                return resposta_formatada, ["Tabela estruturada"], 1.0
-            return resposta_formatada
+                return (lista, estado), fontes, 1.0
+            return (lista, estado)
         # === FIM DO PATCH ===
 
         # Gera embedding da pergunta
