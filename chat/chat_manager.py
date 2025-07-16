@@ -4,7 +4,7 @@ import json
 import numpy as np
 from llama_cpp import Llama
 from chat.web_search import busca_google
-from cache_manager import CacheManager
+from chat.cache_manager import CacheManager
 from datetime import datetime
 import os
 import tiktoken
@@ -320,12 +320,13 @@ class ChatManager:
                 else:
                     st.write(cached)
                 st.markdown(
-                    "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS. Resultados tabulares são exibidos como tabela para facilitar sua consulta.</sub>",
+                    "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS.</sub>",
                     unsafe_allow_html=True
                 )
                 return
 
-            tabular_resposta, uf_nome = busca_tabela_estruturada(query)
+            tabular_resposta, uf_nome, fonte_csv = busca_tabela_estruturada(query)
+            mostrou_tabela = False
 
             if tabular_resposta:
                 municipios = []
@@ -342,82 +343,86 @@ class ChatManager:
                 st.markdown(f"### {titulo}\n")
                 st.table(df_tabela)
                 st.success(f"{len(tabular_resposta)} unidade(s) encontrada(s) para {uf_nome.capitalize() if uf_nome else ''}.")
+                st.caption(f"Fonte: {fonte_csv or 'Arquivo tabular'}")
                 self.cache.set(query, selected_tags, df_tabela.to_markdown(index=False))
                 self.cache.clean()
+                mostrou_tabela = True
+
+            # --- DICA EXTRA: Executa comentário/explicação SÓ SE a pergunta pedir ---
+            explicativas = ["explique", "interprete", "analise", "resuma", "comente", "por quê", "por que", "contextualize", "avalie", "detalhe", "descreva", "justifique"]
+            query_lower = query.lower()
+            precisa_explicar = any(k in query_lower for k in explicativas) or user_prompt.strip()
+
+            if not mostrou_tabela or precisa_explicar:
+                contexto = contexto_preview if contexto_preview is not None else self.get_context_for_preview(query, selected_tags)
+                prompt_final = prompt_preview if prompt_preview is not None else self.build_prompt(contexto, user_prompt, system_prompt, use_advanced, user_full_prompt)
+
+                n_tokens = contar_tokens(prompt_final)
+                if n_tokens > self.llm.n_ctx:
+                    st.error(f"O prompt ({n_tokens} tokens) excede o limite do modelo ({self.llm.n_ctx}). Edite ou reduza o contexto.")
+                    return
+
+                user = "anonimo"
+                log_prompt(user, prompt_final, query, selected_tags, use_advanced)
+
+                resposta = self.llm(prompt_final, max_tokens=LLAMA_MAX_TOKENS, temperature=0.3)
+                if isinstance(resposta, dict):
+                    final_text = resposta["choices"][0]["text"]
+                    finish_reason = resposta["choices"][0].get("finish_reason", "")
+                else:
+                    final_text = str(resposta)
+                    finish_reason = "unknown"
+                final_text = remove_repetidas(final_text)
+                if mostrou_tabela:
+                    st.markdown("**Comentário/explicação:**")
+                st.code(final_text, language="markdown")
+                st.info(f"Motivo de parada do modelo: **{finish_reason}**")
+                if finish_reason == "length":
+                    st.warning("⚠️ Resposta truncada por limite de tokens. Considere aumentar LLAMA_MAX_TOKENS ou diminuir contexto.")
+
+                resposta_fraca = (
+                    not final_text or len(final_text.strip()) < 40
+                    or "não encontrei" in final_text.lower()
+                    or "não foi possível" in final_text.lower()
+                    or "responda apenas à pergunta" in final_text.lower()
+                    or resposta_repetitiva(final_text)
+                )
+
+                if resposta_fraca:
+                    st.info("🔎 Buscando informações complementares no Google...")
+                    contexto_web = busca_google(f"{query} Ministério da Previdência Social")
+                    if contexto_web:
+                        prompt_web = self.build_prompt(contexto_web, user_prompt, system_prompt, use_advanced, user_full_prompt)
+                        log_prompt(user, prompt_web, query, selected_tags, use_advanced)
+                        resposta_web = self.llm(prompt_web, max_tokens=LLAMA_MAX_TOKENS, temperature=0.3)
+                        if isinstance(resposta_web, dict):
+                            final_text_web = resposta_web["choices"][0]["text"]
+                            finish_reason_web = resposta_web["choices"][0].get("finish_reason", "")
+                        else:
+                            final_text_web = str(resposta_web)
+                            finish_reason_web = "unknown"
+                        final_text_web = remove_repetidas(final_text_web)
+                        st.code(final_text_web, language="markdown")
+                        st.info(f"Motivo de parada do modelo (web): **{finish_reason_web}**")
+                        if finish_reason_web == "length":
+                            st.warning("⚠️ Resposta web truncada por limite de tokens.")
+                        st.write(final_text_web)
+                        self.cache.set(query, selected_tags, final_text_web)
+                        self.cache.clean()
+                        st.markdown(
+                            "<sub style='color: #888'>Consulta complementar automática via web.</sub>",
+                            unsafe_allow_html=True
+                        )
+                        return
+                    else:
+                        st.warning("Não foi possível encontrar informações no fallback web.")
+
+                self.cache.set(query, selected_tags, final_text)
+                self.cache.clean()
                 st.markdown(
-                    "<sub style='color: #888'>Consulta estruturada: dados extraídos e exibidos em tabela. Para novas perguntas, digite acima!</sub>",
+                    "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS.</sub>",
                     unsafe_allow_html=True
                 )
-                return
-
-            contexto = contexto_preview if contexto_preview is not None else self.get_context_for_preview(query, selected_tags)
-            prompt_final = prompt_preview if prompt_preview is not None else self.build_prompt(contexto, user_prompt, system_prompt, use_advanced, user_full_prompt)
-
-            n_tokens = contar_tokens(prompt_final)
-            if n_tokens > self.llm.n_ctx:
-                st.error(f"O prompt ({n_tokens} tokens) excede o limite do modelo ({self.llm.n_ctx}). Edite ou reduza o contexto.")
-                return
-
-            user = "anonimo"
-            log_prompt(user, prompt_final, query, selected_tags, use_advanced)
-
-            resposta = self.llm(prompt_final, max_tokens=LLAMA_MAX_TOKENS, temperature=0.3)
-            if isinstance(resposta, dict):
-                final_text = resposta["choices"][0]["text"]
-                finish_reason = resposta["choices"][0].get("finish_reason", "")
-            else:
-                final_text = str(resposta)
-                finish_reason = "unknown"
-            final_text = remove_repetidas(final_text)
-            st.code(final_text, language="markdown")
-            st.info(f"Motivo de parada do modelo: **{finish_reason}**")
-            if finish_reason == "length":
-                st.warning("⚠️ Resposta truncada por limite de tokens. Considere aumentar LLAMA_MAX_TOKENS ou diminuir contexto.")
-
-            resposta_fraca = (
-                not final_text or len(final_text.strip()) < 40
-                or "não encontrei" in final_text.lower()
-                or "não foi possível" in final_text.lower()
-                or "responda apenas à pergunta" in final_text.lower()
-                or resposta_repetitiva(final_text)
-            )
-
-            if resposta_fraca:
-                st.info("🔎 Buscando informações complementares no Google...")
-                contexto_web = busca_google(f"{query} Ministério da Previdência Social")
-                if contexto_web:
-                    prompt_web = self.build_prompt(contexto_web, user_prompt, system_prompt, use_advanced, user_full_prompt)
-                    log_prompt(user, prompt_web, query, selected_tags, use_advanced)
-                    resposta_web = self.llm(prompt_web, max_tokens=LLAMA_MAX_TOKENS, temperature=0.3)
-                    if isinstance(resposta_web, dict):
-                        final_text_web = resposta_web["choices"][0]["text"]
-                        finish_reason_web = resposta_web["choices"][0].get("finish_reason", "")
-                    else:
-                        final_text_web = str(resposta_web)
-                        finish_reason_web = "unknown"
-                    final_text_web = remove_repetidas(final_text_web)
-                    st.code(final_text_web, language="markdown")
-                    st.info(f"Motivo de parada do modelo (web): **{finish_reason_web}**")
-                    if finish_reason_web == "length":
-                        st.warning("⚠️ Resposta web truncada por limite de tokens.")
-                    st.write(final_text_web)
-                    self.cache.set(query, selected_tags, final_text_web)
-                    self.cache.clean()
-                    st.markdown(
-                        "<sub style='color: #888'>Consulta complementar automática via web.</sub>",
-                        unsafe_allow_html=True
-                    )
-                    return
-                else:
-                    st.warning("Não foi possível encontrar informações no fallback web.")
-
-            st.write(final_text)
-            self.cache.set(query, selected_tags, final_text)
-            self.cache.clean()
-            st.markdown(
-                "<sub style='color: #888'>Essa resposta foi processada automaticamente pelo Oráculo MPS.</sub>",
-                unsafe_allow_html=True
-            )
 
         except Exception as e:
             st.error(f"Erro durante a geração da resposta: {e}")
